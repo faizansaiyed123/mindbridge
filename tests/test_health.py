@@ -65,7 +65,10 @@ class HealthServiceTests(unittest.IsolatedAsyncioTestCase):
             result = await service.health()
 
             self.assertEqual(result["status"], "ok")
-            self.assertEqual(result["checks"], {"postgres": "ok", "cache": "ok", "embedder": "ok"})
+            self.assertEqual(
+                result["checks"],
+                {"postgres": "ok", "cache": "ok", "embedder": "ok"},
+            )
             self.assertEqual(result["embedder"], "openai")
             self.assertEqual(result["embedder_status"], "ok")
             self.assertEqual(result["memories"], 7)
@@ -119,7 +122,10 @@ class HealthServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["checks"]["postgres"], "ok")
             self.assertEqual(result["checks"]["cache"], "ok")
             self.assertEqual(result["checks"]["embedder"], "error")
-            self.assertIn("openai https://api.openai.com/v1/embeddings", result["errors"]["embedder"])
+            self.assertIn(
+                "openai https://api.openai.com/v1/embeddings",
+                result["errors"]["embedder"],
+            )
             self.assertIn("HTTPStatusError", result["errors"]["embedder"])
         finally:
             await embedder.aclose()
@@ -141,7 +147,10 @@ class HealthServiceTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(result["status"], "error")
             self.assertEqual(result["checks"]["embedder"], "error")
-            self.assertIn("openai https://api.openai.com/v1/embeddings", result["errors"]["embedder"])
+            self.assertIn(
+                "openai https://api.openai.com/v1/embeddings",
+                result["errors"]["embedder"],
+            )
             self.assertIn("ConnectError", result["errors"]["embedder"])
         finally:
             await embedder.aclose()
