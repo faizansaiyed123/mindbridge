@@ -177,6 +177,8 @@ class HealthServiceTests(unittest.IsolatedAsyncioTestCase):
 
 class HealthRouteTests(unittest.IsolatedAsyncioTestCase):
     async def test_unhealthy_service_maps_to_503(self) -> None:
+        from fastapi import HTTPException
+
         class UnhealthyService:
             async def health(self) -> dict[str, object]:
                 return {
@@ -185,19 +187,14 @@ class HealthRouteTests(unittest.IsolatedAsyncioTestCase):
                     "errors": {"cache": "Redis PING failed"},
                 }
 
-        with self.assertRaises(httpx.HTTPStatusError):
-            # FastAPI exposes HTTPException, but importing it only for a test
-            # makes this test less direct than asserting its status/detail below.
-            await self._assert_http_exception(UnhealthyService())
-
-    async def _assert_http_exception(self, service) -> None:
-        from fastapi import HTTPException
-
         with self.assertRaises(HTTPException) as caught:
-            await healthz(service)
+            await healthz(UnhealthyService())
         self.assertEqual(caught.exception.status_code, 503)
         self.assertEqual(caught.exception.detail["status"], "error")
-        self.assertEqual(caught.exception.detail["errors"]["cache"], "Redis PING failed")
+        self.assertEqual(
+            caught.exception.detail["errors"]["cache"],
+            "Redis PING failed",
+        )
 
 
 if __name__ == "__main__":
