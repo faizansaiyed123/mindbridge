@@ -11,6 +11,8 @@ import logging
 from datetime import date, datetime
 from typing import Self
 
+import httpx
+
 import asyncpg
 
 from .cache import QueryCache
@@ -145,15 +147,59 @@ class MemoryService:
     async def health(self) -> dict[str, object]:
         """Report dependency health and safe runtime configuration.
 
-        中文：报告依赖健康状态及已脱敏的运行配置。
+        Each dependency is probed independently so one failure does not hide
+        the state of the others.
         """
-        await self._pool.fetchval("SELECT 1")
+        checks: dict[str, str] = {}
+        errors: dict[str, str] = {}
+
+        try:
+            await self._pool.fetchval("SELECT 1")
+        except Exception as error:
+            checks["postgres"] = "error"
+            errors["postgres"] = f"PostgreSQL probe failed: {type(error).__name__}"
+        else:
+            checks["postgres"] = "ok"
+
+        cache_health = await self.cache.health()
+        checks["cache"] = cache_health["status"]
+        if cache_health["status"] == "error":
+            errors["cache"] = cache_health.get("detail", "Redis health check failed")
+
+        try:
+            await self.embedder.embed(["healthcheck"])
+        except httpx.HTTPError as error:
+            checks["embedder"] = "error"
+            request = getattr(error, "request", None)
+            endpoint = str(request.url) if request is not None else "configured endpoint"
+            errors["embedder"] = (
+                f"{self.embedder.name} {endpoint}: {type(error).__name__}"
+            )
+        except Exception as error:
+            checks["embedder"] = "error"
+            errors["embedder"] = f"{self.embedder.name}: {type(error).__name__}"
+        else:
+            checks["embedder"] = "ok"
+
+        memories: int | None = None
+        if checks["postgres"] == "ok":
+            try:
+                memories = await self.vectors.count()
+            except Exception as error:
+                checks["postgres"] = "error"
+                errors["postgres"] = (
+                    f"PostgreSQL probe failed: {type(error).__name__}"
+                )
+
         return {
-            "status": "ok",
-            "postgres": "ok",
-            "cache": "ok" if self.cache.enabled else "disabled",
+            "status": "ok" if not errors else "error",
+            "postgres": checks["postgres"],
+            "cache": checks["cache"],
             "embedder": self.embedder.name,
-            "memories": await self.vectors.count(),
+            "embedder_status": checks["embedder"],
+            "checks": checks,
+            "errors": errors,
+            "memories": memories,
             "settings": self.settings.masked(),
         }
 

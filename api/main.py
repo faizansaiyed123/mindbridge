@@ -126,7 +126,13 @@ SessionId = Annotated[str, Path(min_length=1, max_length=128)]
 async def healthz(service: ServiceDep) -> dict[str, object]:
     # Return runtime health without exposing the service implementation.
     # 中文：返回运行时健康状态，不暴露服务实现细节。
-    return await service.health()
+    result = await service.health()
+    if result["status"] != "ok":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=result,
+        )
+    return result
 
 
 # --- T1 -------------------------------------------------------------------
