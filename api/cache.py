@@ -213,6 +213,22 @@ class QueryCache:
             return cls(None, settings.cache_ttl_seconds, **options)
         return cls(client, settings.cache_ttl_seconds, **options)
 
+    async def health(self) -> dict[str, str]:
+        """Probe the Redis dependency used by this cache.
+
+        Returns ``disabled`` when the cache is intentionally configured without
+        Redis, otherwise performs a real Redis PING so /healthz reflects the
+        dependency that the API actually relies on.
+        """
+        if self._client is None:
+            return {"status": "disabled"}
+        try:
+            await self._client.ping()
+        except Exception as error:
+            logger.warning("redis health check failed: %s", type(error).__name__)
+            return {"status": "error", "detail": "Redis PING failed"}
+        return {"status": "ok"}
+
     @property
     def enabled(self) -> bool:
         """Return whether a live Redis client is attached.
