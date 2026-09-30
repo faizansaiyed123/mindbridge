@@ -11,9 +11,8 @@ import logging
 from datetime import date, datetime
 from typing import Self
 
-import httpx
-
 import asyncpg
+import httpx
 
 from .cache import QueryCache
 from .db import apply_schema, create_pool
